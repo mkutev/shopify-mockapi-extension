@@ -12,6 +12,7 @@ A shopify admin app to allow theme and app developers easily create mock product
 - [ ] Index table filtering
 - [ ] Index table pagination
 - [ ] Index table row actions (view)
+- [ ] Map the deprecated 'featuredImage' field to 'featuredMedia'
 - [ ] Handle product variants
 - [ ] Mock product import status with tokens
 - [ ] Ability to query and import whole collections
