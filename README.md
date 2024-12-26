@@ -7,8 +7,12 @@ A shopify admin app to allow theme and app developers easily create mock product
 - [x] Basic graphql queries
 - [x] Index table on app home page
 - [x] Thumbnails
-- [ ] Handle product variants
+- [ ] Row selection
+- [ ] Index table sorting
+- [ ] Index table filtering
 - [ ] Index table pagination
+- [ ] Index table row actions (view)
+- [ ] Handle product variants
 - [ ] Mock product import status with tokens
 - [ ] Ability to query and import whole collections
 - [ ] Banner with info about mock.shop API
