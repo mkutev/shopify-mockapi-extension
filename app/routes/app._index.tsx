@@ -6,18 +6,34 @@ import {
   Text,
   Card,
   BlockStack,
+  IndexTable,
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { gql, request } from "graphql-request";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { base16AteliersulphurpoolLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
+
+
+interface ProductsResponse {
+  products: {
+    edges: Array<{
+      node: {
+        id: string;
+        title: string;
+        description: string;
+        variantsCount: {
+          count: number;
+        };
+      };
+    }>;
+  };
+}
 
 export const loader = async ({ request: req }: LoaderFunctionArgs) => {
   await authenticate.admin(req);
+
   const query = gql`
     {
-      products(first: 1) {
+      products(first: 10) {
         edges {
           node {
             id
@@ -32,8 +48,8 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
     }
   `;
 
-  const response = await request("https://mock.shop/api", query);
-  return response;
+  const queryResponse = await request<ProductsResponse>("https://mock.shop/api", query);
+  return { queryResponse };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -43,32 +59,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Index() {
-  const data = useLoaderData<typeof loader>();
+  const { queryResponse } = useLoaderData<typeof loader>();
+  const products = queryResponse.products.edges.map(({ node }) => ({
+    ...node,
+    id: node.id.replace("gid://shopify/Product/", ""),
+    description: node.description.slice(0,50)
+  }));
+  const resourceName = {
+    singular: 'Product',
+    plural: 'Products',
+  }
+
+  console.log(products);
+
+  const rowMarkup = products.map(
+    (
+      {id, title, description, variantsCount},
+      index
+    ) => (
+      <IndexTable.Row key={id} id={id} position={index}>
+        <IndexTable.Cell >{title}</IndexTable.Cell>
+        <IndexTable.Cell >{description}</IndexTable.Cell>
+        <IndexTable.Cell >{variantsCount.count}</IndexTable.Cell>
+      </IndexTable.Row>
+    )
+  )
 
   return (
-    <Page>
-      <TitleBar title="GraphQL Test" />
-      <Layout>
-        <Layout.AnnotatedSection
-          title="GraphQL Test Page"
-          description="This is a boilerplate page for testing GraphQL queries and mutations."
+    <Page title="Mock.Shop Product List">
+      <Card>
+        <IndexTable
+          resourceName={resourceName}
+          itemCount={products.length}
+          headings={[
+            { title: 'Title' },
+            { title: 'Description' },
+            { title: 'Variants' }
+          ]}
         >
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h3" variant="headingSm">
-                GraphQL Response:
-              </Text>
-
-              <SyntaxHighlighter
-                language="json"
-                style={base16AteliersulphurpoolLight}
-              >
-                {JSON.stringify(data, null, 2)}
-              </SyntaxHighlighter>
-            </BlockStack>
-          </Card>
-        </Layout.AnnotatedSection>
-      </Layout>
+          {rowMarkup}
+        </IndexTable>
+      </Card>
     </Page>
   );
 }
