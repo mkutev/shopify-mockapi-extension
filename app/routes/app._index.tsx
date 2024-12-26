@@ -2,13 +2,10 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import {
   Page,
-  Layout,
-  Text,
   Card,
-  BlockStack,
   IndexTable,
-  Image,
   Thumbnail,
+  useIndexResourceState,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { gql, request } from "graphql-request";
@@ -69,19 +66,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function Index() {
   const { queryResponse } = useLoaderData<typeof loader>();
+  
   const products = queryResponse.products.edges.map(({ node }) => ({
     ...node,
     id: node.id.replace("gid://shopify/Product/", ""),
     description: node.description.slice(0, 50),
   }));
+
   const resourceName = {
     singular: "Product",
     plural: "Products",
   };
 
+  const {selectedResources, allResourcesSelected, handleSelectionChange} =
+    useIndexResourceState(products);
+
   const rowMarkup = products.map(
     ({ id, title, description, variantsCount, featuredImage }, index) => (
-      <IndexTable.Row key={id} id={id} position={index}>
+      <IndexTable.Row key={id} id={id} position={index} selected={selectedResources.includes(id)}>
         <IndexTable.Cell>
           <Thumbnail source={featuredImage.url} alt={title} />
         </IndexTable.Cell>
@@ -98,6 +100,8 @@ export default function Index() {
         <IndexTable
           resourceName={resourceName}
           itemCount={products.length}
+          selectedItemsCount={allResourcesSelected ? 'All' : selectedResources.length}
+          onSelectionChange={handleSelectionChange}
           headings={[
             { title: "Thumbnail" },
             { title: "Title" },
