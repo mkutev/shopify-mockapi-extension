@@ -1,18 +1,21 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
   IndexTable,
   Thumbnail,
   useIndexResourceState,
+  Button,
 } from "@shopify/polaris";
+import { ViewIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { gql, request } from "graphql-request";
 
 interface ProductsResponse {
   products: {
     edges: Array<{
+      cursor: string;
       node: {
         id: string;
         title: string;
@@ -25,37 +28,72 @@ interface ProductsResponse {
         };
       };
     }>;
+    pageInfo: {
+      hasPreviousPage: boolean;
+      hasNextPage: boolean;
+      endCursor: string;
+      startCursor: string;
+    };
   };
 }
 
 export const loader = async ({ request: req }: LoaderFunctionArgs) => {
-  await authenticate.admin(req);
+  // await authenticate.admin(req);
+  const { admin } = await authenticate.admin(req);
+  const url = new URL(req.url);
+  const cursor = url.searchParams.get("cursor") || null;
+  const direction = url.searchParams.get("direction") || 'next';
 
-  const query = gql`
-    {
-      products(first: 10) {
+  const remoteProductsQuery = gql`
+    query($cursor: String) {
+      products(${direction === "next" ? "first" : "last"}:10, ${direction === "next" ? "after" : "before"}: $cursor) {
         edges {
+          cursor
           node {
             id
             title
-            description
+            description(truncateAt: 35)
             featuredImage {
-              url
+              url(transform: {maxHeight: 100, preferredContentType: WEBP})
             }
             variantsCount {
               count
             }
           }
         }
+        pageInfo {
+          hasPreviousPage
+          hasNextPage
+          endCursor
+          startCursor
+        }
       }
     }
   `;
 
-  const queryResponse = await request<ProductsResponse>(
-    "https://mock.shop/api",
-    query,
+  const localProductsQuery = await admin.graphql(
+    `#graphql
+      query {
+        products(first: 10) {
+          edges {
+            node {
+              id
+            }
+          }
+        }
+      }
+    `
   );
-  return { queryResponse };
+
+  const remoteProductsResponse = await request<ProductsResponse>(
+    "https://mock.shop/api",
+    remoteProductsQuery,
+    { cursor }
+  );
+
+  const localProductsResponse = await localProductsQuery.json();
+
+  return { remoteProductsResponse, localProductsResponse };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -65,23 +103,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Index() {
-  const { queryResponse } = useLoaderData<typeof loader>();
-  
-  const products = queryResponse.products.edges.map(({ node }) => ({
-    ...node,
-    id: node.id.replace("gid://shopify/Product/", ""),
-    description: node.description.slice(0, 50),
-  }));
+  const { remoteProductsResponse, localProductsResponse } = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
 
   const resourceName = {
     singular: "Product",
     plural: "Products",
   };
 
-  const {selectedResources, allResourcesSelected, handleSelectionChange} =
-    useIndexResourceState(products);
+  const remoteProducts = remoteProductsResponse.products.edges.map(({ node }) => ({
+    ...node,
+    id: node.id.replace("gid://shopify/Product/", ""),
+  }));
 
-  const rowMarkup = products.map(
+  const {selectedResources, allResourcesSelected, handleSelectionChange} =
+  useIndexResourceState(remoteProducts);  
+
+  const paginate = (direction: 'next' | 'previous') => {
+    const cursor = remoteProductsResponse.products.pageInfo[direction === "next" ? "endCursor" : "startCursor"];
+    navigate(`?direction=${direction}&cursor=${cursor}`) 
+  }
+
+  const rowMarkup = remoteProducts.map(
     ({ id, title, description, variantsCount, featuredImage }, index) => (
       <IndexTable.Row key={id} id={id} position={index} selected={selectedResources.includes(id)}>
         <IndexTable.Cell>
@@ -90,6 +133,9 @@ export default function Index() {
         <IndexTable.Cell>{title}</IndexTable.Cell>
         <IndexTable.Cell>{description}</IndexTable.Cell>
         <IndexTable.Cell>{variantsCount.count}</IndexTable.Cell>
+        <IndexTable.Cell>
+          <Button icon={ViewIcon} onClick={() => {}}>View</Button>
+        </IndexTable.Cell>
       </IndexTable.Row>
     ),
   );
@@ -99,7 +145,7 @@ export default function Index() {
       <Card padding="0">
         <IndexTable
           resourceName={resourceName}
-          itemCount={products.length}
+          itemCount={remoteProducts.length}
           selectedItemsCount={allResourcesSelected ? 'All' : selectedResources.length}
           onSelectionChange={handleSelectionChange}
           headings={[
@@ -107,7 +153,14 @@ export default function Index() {
             { title: "Title" },
             { title: "Description" },
             { title: "Variants" },
+            { title: "Actions" },
           ]}
+          pagination={{
+            hasPrevious: remoteProductsResponse.products.pageInfo.hasPreviousPage,
+            hasNext: remoteProductsResponse.products.pageInfo.hasNextPage,
+            onNext: () => paginate('next'),
+            onPrevious: () => paginate('previous'),
+          }}
         >
           {rowMarkup}
         </IndexTable>
