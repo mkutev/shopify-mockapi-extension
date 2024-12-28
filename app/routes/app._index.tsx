@@ -7,9 +7,10 @@ import {
   Thumbnail,
   useIndexResourceState,
   Button,
+  ButtonGroup,
   Text,
 } from "@shopify/polaris";
-import { ViewIcon } from "@shopify/polaris-icons";
+import { ViewIcon, PlusIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { gql, request } from "graphql-request";
 import { useState } from "react";
@@ -22,6 +23,17 @@ interface ProductsResponse {
       node: {
         id: string;
         title: string;
+        handle: string;
+        category: {
+          name: string;
+        };
+        collections: {
+          edges: Array<{
+            node: {
+              title: string;
+            };
+          }>;
+        };
         description: string;
         featuredImage: {
           url: string;
@@ -67,6 +79,17 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
           node {
             id
             title
+            handle
+            category {
+              name
+            }
+            collections(first:5) {
+              edges {
+                node {
+                  title
+                }
+              }
+            }
             description(truncateAt: 35)
             featuredImage {
               url(transform: {maxHeight: 100, preferredContentType: WEBP})
@@ -86,29 +109,13 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
     }
   `;
 
-  const localProductsQuery = await admin.graphql(
-    `#graphql
-      query {
-        products(first: 10) {
-          edges {
-            node {
-              id
-            }
-          }
-        }
-      }
-    `,
-  );
-
   const remoteProductsResponse = await request<ProductsResponse>(
     "https://mock.shop/api",
     remoteProductsQuery,
     { cursor },
   );
 
-  const localProductsResponse = await localProductsQuery.json();
-
-  return { remoteProductsResponse, localProductsResponse };
+  return { remoteProductsResponse };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -118,8 +125,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Index() {
-  const { remoteProductsResponse, localProductsResponse } =
-    useLoaderData<typeof loader>();
+  const { remoteProductsResponse } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -141,8 +147,11 @@ export default function Index() {
     ({ node }) => ({
       ...node,
       id: node.id.replace("gid://shopify/Product/", ""),
+      collections: node.collections.edges.map(({ node }) => node.title),
     }),
   );
+
+  console.log(remoteProducts);
 
   // Item selection
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
@@ -158,25 +167,28 @@ export default function Index() {
   };
 
   // Table rows
-  const rowMarkup = remoteProducts.map(
-    (product, index) => (
-      <IndexTable.Row
-        key={product.id}
-        id={product.id}
-        position={index}
-        // selected={selectedResources.includes(product.id)}
-      >
-        <IndexTable.Cell>
-          <Thumbnail source={product.featuredImage.url} alt={product.title} />
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" variant="bodyMd" fontWeight="bold">
-            {product.title}
-          </Text>
-        </IndexTable.Cell>
-        <IndexTable.Cell>{product.description}</IndexTable.Cell>
-        <IndexTable.Cell>{product.variantsCount.count}</IndexTable.Cell>
-        <IndexTable.Cell>
+  const rowMarkup = remoteProducts.map((product, index) => (
+    <IndexTable.Row
+      key={product.id}
+      id={product.id}
+      position={index}
+      // selected={selectedResources.includes(product.id)}
+    >
+      <IndexTable.Cell>
+        <Thumbnail source={product.featuredImage.url} alt={product.title} />
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Text as="span" variant="bodyMd" fontWeight="bold">
+          {product.title}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>{product.handle}</IndexTable.Cell>
+      <IndexTable.Cell>{product.category.name}</IndexTable.Cell>
+      <IndexTable.Cell>{product.collections.join(", ")}</IndexTable.Cell>
+      {/* <IndexTable.Cell>{product.description}</IndexTable.Cell> */}
+      <IndexTable.Cell>{product.variantsCount.count}</IndexTable.Cell>
+      <IndexTable.Cell>
+        <ButtonGroup>
           <Button
             icon={ViewIcon}
             onClick={() => {
@@ -185,14 +197,17 @@ export default function Index() {
           >
             View
           </Button>
-        </IndexTable.Cell>
-      </IndexTable.Row>
-    ),
-  );
+          <Button icon={PlusIcon} onClick={() => {}} variant="primary">
+            Import
+          </Button>
+        </ButtonGroup>
+      </IndexTable.Cell>
+    </IndexTable.Row>
+  ));
 
   return (
     <>
-      <Page title="Mock.Shop Product List">
+      <Page fullWidth title="Mock.Shop Homepage">
         <Card padding="0">
           <IndexTable
             resourceName={resourceName}
@@ -205,7 +220,10 @@ export default function Index() {
             headings={[
               { title: "Thumbnail" },
               { title: "Title" },
-              { title: "Description" },
+              { title: "Handle" },
+              { title: "Category" },
+              { title: "Collections" },
+              // { title: "Description" },
               { title: "Variants" },
               { title: "Actions" },
             ]}
@@ -223,10 +241,7 @@ export default function Index() {
       </Page>
 
       {selectedProduct && (
-        <Modal
-          open={isModalOpen}
-          onHide={() => setIsModalOpen(false)}
-        > 
+        <Modal open={isModalOpen} onHide={() => setIsModalOpen(false)}>
           <TitleBar title={selectedProduct.title} />
           <p>{selectedProduct.description}</p>
         </Modal>
