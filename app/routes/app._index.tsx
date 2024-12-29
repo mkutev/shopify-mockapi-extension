@@ -33,6 +33,7 @@ interface ProductsResponse {
         };
         handle: string;
         category: {
+          id: string;
           name: string;
         };
         collections: {
@@ -122,6 +123,7 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
             }
             handle
             category {
+              id
               name
             }
             collections(first:5) {
@@ -181,8 +183,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       productCreate(product: $product, media: $media) {
         product {
           id
-          title
           handle
+          title
+          category {
+            id
+          }
           descriptionHtml
         }
       }
@@ -190,8 +195,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     {
       variables: {
         product: {
-          title: productData.title,
           handle: productData.handle,
+          title: productData.title,
+          category: productData.category.id,
           descriptionHtml: productData.descriptionHtml,
         },
         media: [
@@ -286,7 +292,7 @@ export default function Index() {
         {product.priceRange.minVariantPrice.currencyCode}
       </IndexTable.Cell>
       <IndexTable.Cell>{product.handle}</IndexTable.Cell>
-      <IndexTable.Cell>{product.category.name}</IndexTable.Cell>
+      <IndexTable.Cell>{product.category.id}</IndexTable.Cell>
       <IndexTable.Cell>{product.collections.join(", ")}</IndexTable.Cell>
       <IndexTable.Cell>{product.options.join(", ")}</IndexTable.Cell>
       <IndexTable.Cell>{product.variantsCount.count}</IndexTable.Cell>

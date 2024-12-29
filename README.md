@@ -26,7 +26,7 @@ I'm making this up as I go, whatever seems interesting to do.
 - [ ] Sales channel
 - [ ] Prices
 - [ ] Variants
-- [ ] Categories
+- [x] Category
 - [ ] Collections
 - [ ] Full-res images (or at least one image)
 - [ ] ???
