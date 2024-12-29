@@ -8,6 +8,7 @@ import {
   Button,
   Text,
   DescriptionList,
+  Badge,
 } from "@shopify/polaris";
 import { PlusIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
@@ -78,11 +79,32 @@ interface Product {
  * Loader
  */
 export const loader = async ({ request: req }: LoaderFunctionArgs) => {
-  // await authenticate.admin(req);
   const { admin } = await authenticate.admin(req);
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor") || null;
   const direction = url.searchParams.get("direction") || "next";
+
+  // Fetch just the handles of existing products from Shopify
+  const existingProductsQuery = await admin.graphql(
+    `#graphql
+      query getProductHandles {
+        products(first: 250) {
+          edges {
+            node {
+              handle
+            }
+          }
+        }
+      }
+    `,
+  );
+
+  const existingProductsJson = await existingProductsQuery.json();
+  const existingHandles = new Set(
+    existingProductsJson.data.products.edges.map(
+      (edge: any) => edge.node.handle,
+    ),
+  );
 
   const remoteProductsQuery = gql`
     query($cursor: String) {
@@ -137,7 +159,10 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
     { cursor },
   );
 
-  return { remoteProductsResponse };
+  return {
+    remoteProductsResponse,
+    existingHandles: Array.from(existingHandles),
+  };
 };
 
 /*
@@ -192,7 +217,9 @@ export default function Index() {
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const shopify = useAppBridge();
-  const { remoteProductsResponse } = useLoaderData<typeof loader>();
+  const { remoteProductsResponse, existingHandles } =
+    useLoaderData<typeof loader>();
+  const existingHandlesSet = new Set(existingHandles);
 
   // Check if the fetcher is loading
   const isLoading =
@@ -261,14 +288,24 @@ export default function Index() {
       <IndexTable.Cell>{product.handle}</IndexTable.Cell>
       <IndexTable.Cell>{product.category.name}</IndexTable.Cell>
       <IndexTable.Cell>{product.collections.join(", ")}</IndexTable.Cell>
-      {/* <IndexTable.Cell>{product.description}</IndexTable.Cell> */}
       <IndexTable.Cell>{product.options.join(", ")}</IndexTable.Cell>
       <IndexTable.Cell>{product.variantsCount.count}</IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge
+          {...{
+            tone: existingHandlesSet.has(product.handle) ? "success" : "info",
+            children: existingHandlesSet.has(product.handle)
+              ? "Imported"
+              : "Available",
+          }}
+        />
+      </IndexTable.Cell>
       <IndexTable.Cell>
         <Button
           icon={PlusIcon}
           onClick={() => importProduct(product)}
           variant="primary"
+          disabled={existingHandlesSet.has(product.handle)}
         >
           Import
         </Button>
@@ -293,6 +330,7 @@ export default function Index() {
               { title: "Collections" },
               { title: "Options" },
               { title: "Variants" },
+              { title: "Status" },
               { title: "Actions" },
             ]}
             pagination={{

@@ -15,6 +15,7 @@ I'm making this up as I go, whatever seems interesting to do.
 - [x] Index table pagination
 - [x] Actually importing products lol
 - [x] Map the deprecated 'featuredImage' field to 'featuredMedia'
+- [x] Import status badges
 - [ ] Implement skeletons for loading states
 - [ ] Mock product import status with tokens
 - [ ] Ability to query and import whole collections

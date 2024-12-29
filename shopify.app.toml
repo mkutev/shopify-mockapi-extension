@@ -3,7 +3,7 @@
 client_id = "d45159a07f5b0e2b908b8eeb65d5f97f"
 name = "Mock.Shop Products"
 handle = "mockshop"
-application_url = "https://jon-everyone-zum-peer.trycloudflare.com"
+application_url = "https://commercial-mel-american-grants.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://jon-everyone-zum-peer.trycloudflare.com/auth/callback",
-  "https://jon-everyone-zum-peer.trycloudflare.com/auth/shopify/callback",
-  "https://jon-everyone-zum-peer.trycloudflare.com/api/auth/callback"
+  "https://commercial-mel-american-grants.trycloudflare.com/auth/callback",
+  "https://commercial-mel-american-grants.trycloudflare.com/auth/shopify/callback",
+  "https://commercial-mel-american-grants.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]
