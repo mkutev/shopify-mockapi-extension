@@ -15,13 +15,13 @@ I'm making this up as I go, whatever seems interesting to do.
 - [x] Index table pagination
 - [x] Actually importing products lol
 - [x] Map the deprecated 'featuredImage' field to 'featuredMedia'
-- [ ] Handle product variants
 - [ ] Implement skeletons for loading states
 - [ ] Mock product import status with tokens
 - [ ] Ability to query and import whole collections
 - [ ] Banner with info about mock.shop API
 
 #### Fix missing information from product import
+
 - [ ] Sales channel
 - [ ] Prices
 - [ ] Variants
