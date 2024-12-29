@@ -21,6 +21,15 @@ I'm making this up as I go, whatever seems interesting to do.
 - [ ] Ability to query and import whole collections
 - [ ] Banner with info about mock.shop API
 
+#### Fix missing information from product import
+- [ ] Sales channel
+- [ ] Prices
+- [ ] Variants
+- [ ] Categories
+- [ ] Collections
+- [ ] Full-res images (or at least one image)
+- [ ] ???
+
 #### Not that important
 
 - [1/2] Index table row actions (view) ?? is this rly needed
