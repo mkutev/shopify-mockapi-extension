@@ -1,20 +1,21 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useNavigate } from "@remix-run/react";
+import { useLoaderData, useNavigate, Form, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
   IndexTable,
   Thumbnail,
-  useIndexResourceState,
   Button,
-  ButtonGroup,
   Text,
+  DescriptionList,
 } from "@shopify/polaris";
-import { ViewIcon, PlusIcon } from "@shopify/polaris-icons";
+import { PlusIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { gql, request } from "graphql-request";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { title } from "process";
+import handleRequest from "app/entry.server";
 
 interface ProductsResponse {
   products: {
@@ -23,6 +24,12 @@ interface ProductsResponse {
       node: {
         id: string;
         title: string;
+        priceRange: {
+          minVariantPrice: {
+            amount: string;
+            currencyCode: string;
+          };
+        };
         handle: string;
         category: {
           name: string;
@@ -38,6 +45,9 @@ interface ProductsResponse {
         featuredImage: {
           url: string;
         };
+        options: Array<{
+          name: string;
+        }>;
         variantsCount: {
           count: number;
         };
@@ -64,6 +74,9 @@ interface Product {
   };
 }
 
+/*
+ * Loader
+ */
 export const loader = async ({ request: req }: LoaderFunctionArgs) => {
   // await authenticate.admin(req);
   const { admin } = await authenticate.admin(req);
@@ -79,6 +92,12 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
           node {
             id
             title
+            priceRange {
+              minVariantPrice {
+                amount
+                currencyCode
+              }
+            }
             handle
             category {
               name
@@ -90,9 +109,12 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
                 }
               }
             }
-            description(truncateAt: 35)
+            descriptionHtml
             featuredImage {
               url(transform: {maxHeight: 100, preferredContentType: WEBP})
+            }
+            options(first: 3) {
+              name
             }
             variantsCount {
               count
@@ -118,23 +140,76 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
   return { remoteProductsResponse };
 };
 
+/*
+ * Action
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const productData = JSON.parse(formData.get("productData") as string);
 
-  return null;
+  console.log("productData: ", productData);
+
+  const response = await admin.graphql(
+    `#graphql
+    mutation importMockProduct($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+      productCreate(product: $product, media: $media) {
+        product {
+          id
+          title
+          handle
+          descriptionHtml
+        }
+      }
+    }`,
+    {
+      variables: {
+        product: {
+          title: productData.title,
+          handle: productData.handle,
+          descriptionHtml: productData.descriptionHtml,
+        },
+        media: [
+          {
+            mediaContentType: "IMAGE",
+            originalSource: productData.featuredImage.url,
+          },
+        ],
+      },
+    },
+  );
+
+  const responseJson = await response.json();
+  const product = responseJson.data.productCreate.product;
+
+  return { product };
 };
 
+/*
+ * Component
+ */
 export default function Index() {
-  const { remoteProductsResponse } = useLoaderData<typeof loader>();
+  const fetcher = useFetcher();
   const navigate = useNavigate();
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const shopify = useAppBridge();
+  const { remoteProductsResponse } = useLoaderData<typeof loader>();
 
-  // Handle 'view' button
-  const viewProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setIsModalOpen(true);
-  };
+  // Check if the fetcher is loading
+  const isLoading =
+    ["loading", "submitting"].includes(fetcher.state) &&
+    fetcher.formMethod === "POST";
+
+  // Get the product id from the fetcher data
+  const productId = fetcher.data?.product?.id.replace(
+    "gid://shopify/Product/",
+    "",
+  );
+
+  useEffect(() => {
+    if (productId) {
+      shopify.toast.show("Product created");
+    }
+  }, [productId, shopify]);
 
   // Resource name
   const resourceName = {
@@ -148,14 +223,9 @@ export default function Index() {
       ...node,
       id: node.id.replace("gid://shopify/Product/", ""),
       collections: node.collections.edges.map(({ node }) => node.title),
+      options: node.options.map(({ name }) => name),
     }),
   );
-
-  console.log(remoteProducts);
-
-  // Item selection
-  const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(remoteProducts);
 
   // Pagination
   const paginate = (direction: "next" | "previous") => {
@@ -166,14 +236,16 @@ export default function Index() {
     navigate(`?direction=${direction}&cursor=${cursor}`);
   };
 
-  // Table rows
+  // Import product
+  const importProduct = (product: Product) =>
+    fetcher.submit(
+      { productData: JSON.stringify(product) },
+      { method: "POST" },
+    );
+
+  // Row markup
   const rowMarkup = remoteProducts.map((product, index) => (
-    <IndexTable.Row
-      key={product.id}
-      id={product.id}
-      position={index}
-      // selected={selectedResources.includes(product.id)}
-    >
+    <IndexTable.Row key={product.id} id={product.id} position={index}>
       <IndexTable.Cell>
         <Thumbnail source={product.featuredImage.url} alt={product.title} />
       </IndexTable.Cell>
@@ -182,25 +254,24 @@ export default function Index() {
           {product.title}
         </Text>
       </IndexTable.Cell>
+      <IndexTable.Cell>
+        ${product.priceRange.minVariantPrice.amount}{" "}
+        {product.priceRange.minVariantPrice.currencyCode}
+      </IndexTable.Cell>
       <IndexTable.Cell>{product.handle}</IndexTable.Cell>
       <IndexTable.Cell>{product.category.name}</IndexTable.Cell>
       <IndexTable.Cell>{product.collections.join(", ")}</IndexTable.Cell>
       {/* <IndexTable.Cell>{product.description}</IndexTable.Cell> */}
+      <IndexTable.Cell>{product.options.join(", ")}</IndexTable.Cell>
       <IndexTable.Cell>{product.variantsCount.count}</IndexTable.Cell>
       <IndexTable.Cell>
-        <ButtonGroup>
-          <Button
-            icon={ViewIcon}
-            onClick={() => {
-              viewProduct(product);
-            }}
-          >
-            View
-          </Button>
-          <Button icon={PlusIcon} onClick={() => {}} variant="primary">
-            Import
-          </Button>
-        </ButtonGroup>
+        <Button
+          icon={PlusIcon}
+          onClick={() => importProduct(product)}
+          variant="primary"
+        >
+          Import
+        </Button>
       </IndexTable.Cell>
     </IndexTable.Row>
   ));
@@ -212,18 +283,15 @@ export default function Index() {
           <IndexTable
             resourceName={resourceName}
             itemCount={remoteProducts.length}
-            // selectedItemsCount={
-            //   allResourcesSelected ? "All" : selectedResources.length
-            // }
-            // onSelectionChange={handleSelectionChange}
             selectable={false}
             headings={[
               { title: "Thumbnail" },
               { title: "Title" },
+              { title: "Price" },
               { title: "Handle" },
               { title: "Category" },
               { title: "Collections" },
-              // { title: "Description" },
+              { title: "Options" },
               { title: "Variants" },
               { title: "Actions" },
             ]}
@@ -234,18 +302,12 @@ export default function Index() {
               onNext: () => paginate("next"),
               onPrevious: () => paginate("previous"),
             }}
+            // loading={true}
           >
             {rowMarkup}
           </IndexTable>
         </Card>
       </Page>
-
-      {selectedProduct && (
-        <Modal open={isModalOpen} onHide={() => setIsModalOpen(false)}>
-          <TitleBar title={selectedProduct.title} />
-          <p>{selectedProduct.description}</p>
-        </Modal>
-      )}
     </>
   );
 }
