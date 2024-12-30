@@ -23,12 +23,12 @@ I'm making this up as I go, whatever seems interesting to do.
 
 #### Fix missing information from product import
 
-- [ ] Sales channel
-- [ ] Prices
+- [ ] Sales channel (can't be done inside productCreate mutation)
+- [ ] Prices (can't be done inside productCreate mutation)
 - [ ] Variants
 - [x] Category
 - [ ] Collections
-- [ ] Full-res images (or at least one image)
+- [x] Full-res images (or at least one image)
 - [ ] ???
 
 #### Not that important

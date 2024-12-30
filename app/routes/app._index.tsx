@@ -25,7 +25,7 @@ interface ProductsResponse {
       node: {
         id: string;
         title: string;
-        priceRange: {
+        priceRangeV2: {
           minVariantPrice: {
             amount: string;
             currencyCode: string;
@@ -46,6 +46,11 @@ interface ProductsResponse {
         description: string;
         featuredImage: {
           url: string;
+        };
+        images: {
+          nodes: Array<{
+            url: string;
+          }>;
         };
         options: Array<{
           name: string;
@@ -107,9 +112,20 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
     ),
   );
 
+  // Then when making the request:
+  const variables =
+    direction === "next"
+      ? { first: 10, after: cursor }
+      : { last: 10, before: cursor };
+
   const remoteProductsQuery = gql`
-    query($cursor: String) {
-      products(${direction === "next" ? "first" : "last"}:10, ${direction === "next" ? "after" : "before"}: $cursor) {
+    query getRemoteProducts(
+      $first: Int
+      $last: Int
+      $before: String
+      $after: String
+    ) {
+      products(first: $first, last: $last, before: $before, after: $after) {
         edges {
           cursor
           node {
@@ -126,7 +142,7 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
               id
               name
             }
-            collections(first:5) {
+            collections(first: 5) {
               edges {
                 node {
                   title
@@ -135,7 +151,12 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
             }
             descriptionHtml
             featuredImage {
-              url(transform: {maxHeight: 100, preferredContentType: WEBP})
+              url(transform: { maxHeight: 100, preferredContentType: WEBP })
+            }
+            images(first: 5) {
+              nodes {
+                url
+              }
             }
             options(first: 3) {
               name
@@ -158,7 +179,7 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
   const remoteProductsResponse = await request<ProductsResponse>(
     "https://mock.shop/api",
     remoteProductsQuery,
-    { cursor },
+    variables,
   );
 
   return {
@@ -177,18 +198,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   console.log("productData: ", productData);
 
-  const response = await admin.graphql(
+  // Create product in local store
+  const productResponse = await admin.graphql(
     `#graphql
-    mutation importMockProduct($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+    mutation importMockProduct(
+      $product: ProductCreateInput!,
+      $media: [CreateMediaInput!]
+    ) {
       productCreate(product: $product, media: $media) {
         product {
           id
           handle
-          title
-          category {
-            id
-          }
-          descriptionHtml
         }
       }
     }`,
@@ -200,18 +220,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           category: productData.category.id,
           descriptionHtml: productData.descriptionHtml,
         },
-        media: [
-          {
-            mediaContentType: "IMAGE",
-            originalSource: productData.featuredImage.url,
-          },
-        ],
+        media: productData.images.map((url: string) => ({
+          mediaContentType: "IMAGE",
+          originalSource: url,
+        })),
       },
     },
   );
 
-  const responseJson = await response.json();
-  const product = responseJson.data.productCreate.product;
+  // Update product variants
+  // const variantsResponse = await admin.graphql(
+  //   `#graphql
+  //     mutation updateVariants
+  //   `,
+  // );
+
+  const productResponseJson = await productResponse.json();
+  const product = productResponseJson.data.productCreate.product;
 
   return { product };
 };
@@ -238,6 +263,7 @@ export default function Index() {
     "",
   );
 
+  // Show toast when product is created
   useEffect(() => {
     if (productId) {
       shopify.toast.show("Product created");
@@ -257,6 +283,7 @@ export default function Index() {
       id: node.id.replace("gid://shopify/Product/", ""),
       collections: node.collections.edges.map(({ node }) => node.title),
       options: node.options.map(({ name }) => name),
+      images: node.images.nodes.map(({ url }) => url),
     }),
   );
 
@@ -319,6 +346,7 @@ export default function Index() {
     </IndexTable.Row>
   ));
 
+  // Render IndexTable
   return (
     <>
       <Page fullWidth title="Mock.Shop Homepage">
@@ -346,7 +374,7 @@ export default function Index() {
               onNext: () => paginate("next"),
               onPrevious: () => paginate("previous"),
             }}
-            // loading={true}
+            loading={isLoading}
           >
             {rowMarkup}
           </IndexTable>
