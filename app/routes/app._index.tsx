@@ -36,6 +36,7 @@ interface ProductsResponse {
           id: string;
           name: string;
         };
+        productType: string;
         collections: {
           edges: Array<{
             node: {
@@ -142,6 +143,7 @@ export const loader = async ({ request: req }: LoaderFunctionArgs) => {
               id
               name
             }
+            productType
             collections(first: 5) {
               edges {
                 node {
@@ -320,6 +322,7 @@ export default function Index() {
       </IndexTable.Cell>
       <IndexTable.Cell>{product.handle}</IndexTable.Cell>
       <IndexTable.Cell>{product.category.id}</IndexTable.Cell>
+      <IndexTable.Cell>{product.productType}</IndexTable.Cell>
       <IndexTable.Cell>{product.collections.join(", ")}</IndexTable.Cell>
       <IndexTable.Cell>{product.options.join(", ")}</IndexTable.Cell>
       <IndexTable.Cell>{product.variantsCount.count}</IndexTable.Cell>
@@ -361,6 +364,7 @@ export default function Index() {
               { title: "Price" },
               { title: "Handle" },
               { title: "Category" },
+              { title: "Type" },
               { title: "Collections" },
               { title: "Options" },
               { title: "Variants" },

@@ -16,8 +16,8 @@ I'm making this up as I go, whatever seems interesting to do.
 - [x] Actually importing products lol
 - [x] Map the deprecated 'featuredImage' field to 'featuredMedia'
 - [x] Import status badges
+- [x] Mock product import status with tokens
 - [ ] Implement skeletons for loading states
-- [ ] Mock product import status with tokens
 - [ ] Ability to query and import whole collections
 - [ ] Banner with info about mock.shop API
 
